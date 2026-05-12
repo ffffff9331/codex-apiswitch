@@ -1,9 +1,9 @@
 {
-  "name": "codex-relay-profile",
+  "name": "codex-switch",
   "version": "0.1.0",
-  "description": "Configure Codex CLI custom model-provider profiles for OpenAI Responses-compatible relay APIs.",
+  "description": "Switch Codex CLI between OpenAI Responses-compatible relay API profiles.",
   "bin": {
-    "codex-relay-profile": "bin/codex-relay-profile.js"
+    "codex-switch": "bin/codex-switch.js"
   },
   "scripts": {
     "test": "node --test"
