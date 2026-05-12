@@ -1,0 +1,22 @@
+{
+  "name": "codex-relay-profile",
+  "version": "0.1.0",
+  "description": "Configure Codex CLI custom model-provider profiles for OpenAI Responses-compatible relay APIs.",
+  "bin": {
+    "codex-relay-profile": "bin/codex-relay-profile.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "keywords": [
+    "codex",
+    "openai",
+    "responses-api",
+    "relay",
+    "cli"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}
