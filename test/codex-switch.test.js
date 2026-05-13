@@ -342,6 +342,7 @@ describe("codex-switch", () => {
     assert.match(result.stdout, /codex-switch list/);
     assert.match(result.stdout, /codex-switch account/);
     assert.match(result.stdout, /--delete-key/);
+    assert.match(result.stdout, /--no-open/);
     assert.match(result.stdout, /--port <port>/);
     assert.match(result.stdout, /codex-switch model --name <profile> --model <model>/);
     assert.match(result.stdout, /codex-switch thread-model --model <model>/);

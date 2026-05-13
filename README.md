@@ -8,7 +8,7 @@ It also writes a profile-scoped Codex model catalog at `~/.codex/codex-switch/<p
 ## Install
 
 ```bash
-npm install -g codex-switch
+npm install -g codex-apiswitch
 ```
 
 Or run from a checkout:
@@ -31,11 +31,13 @@ Or from a checkout:
 node bin/codex-switch.js web
 ```
 
-Then open:
+It opens the local page automatically. The default URL is:
 
 ```text
 http://127.0.0.1:8787
 ```
+
+Use `--no-open` if you only want to start the server.
 
 The page lets you:
 

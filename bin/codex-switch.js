@@ -38,6 +38,7 @@ Options:
   --delete-key             Delete the local key file when removing a profile
   --host <host>            Web server host, default 127.0.0.1
   --port <port>            Web server port, default 8787
+  --no-open                Do not open the web UI in a browser
   --force                  Overwrite an existing key file without prompting
 
 Security:
@@ -57,12 +58,8 @@ function parseArgs(argv) {
     }
 
     const key = item.slice(2).replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-    if (key === "force") {
-      args.force = true;
-      continue;
-    }
-    if (key === "deleteKey") {
-      args.deleteKey = true;
+    if (key === "force" || key === "deleteKey" || key === "noOpen") {
+      args[key] = true;
       continue;
     }
 
@@ -1585,8 +1582,19 @@ function startWeb(args) {
 
   server.listen(port, host, () => {
     const address = server.address();
-    console.log(`Codex Switch web UI: http://${host}:${address.port}`);
+    const url = `http://${host}:${address.port}`;
+    console.log(`Codex Switch web UI: ${url}`);
+    if (!args.noOpen) {
+      openBrowser(url);
+    }
   });
+}
+
+function openBrowser(url) {
+  const command = process.platform === "darwin" ? "open" : process.platform === "win32" ? "cmd" : "xdg-open";
+  const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
+  const child = execFile(command, args, { stdio: "ignore" }, () => {});
+  child.unref();
 }
 
 async function main() {
