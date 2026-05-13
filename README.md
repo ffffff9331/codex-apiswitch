@@ -1,20 +1,20 @@
-# codex-apiswitch
+# codex-switch
 
 Small local web UI and CLI for adding OpenAI Responses-compatible relay API profiles to Codex.
 
 It edits `~/.codex/config.toml` and stores the API key outside the config file in a local `chmod 600` key file.
-It also writes a profile-scoped Codex model catalog at `~/.codex/codex-apiswitch/<profile>_models.json`. Codex CLI can read this catalog; Codex Desktop may still hide custom provider models in its built-in model picker.
+It also writes a profile-scoped Codex model catalog at `~/.codex/codex-switch/<profile>_models.json`. Codex CLI can read this catalog; Codex Desktop may still hide custom provider models in its built-in model picker.
 
 ## Install
 
 ```bash
-npm install -g codex-apiswitch
+npm install -g codex-switch
 ```
 
 Or run from a checkout:
 
 ```bash
-node bin/codex-apiswitch.js --help
+node bin/codex-switch.js --help
 ```
 
 ## Web UI
@@ -22,13 +22,13 @@ node bin/codex-apiswitch.js --help
 Start the local web app:
 
 ```bash
-codex-apiswitch web
+codex-switch web
 ```
 
 Or from a checkout:
 
 ```bash
-node bin/codex-apiswitch.js web
+node bin/codex-switch.js web
 ```
 
 It opens the local page automatically. The default URL is:
@@ -57,7 +57,7 @@ For an existing profile, click `Edit` in the profile list, change the fields, th
 ## Usage
 
 ```bash
-codex-apiswitch setup \
+codex-switch setup \
   --name vayne \
   --base-url https://api.vayne.cc.cd/v1 \
   --model gpt-5.5
@@ -72,19 +72,19 @@ codex --profile vayne
 Change the model for an existing managed profile:
 
 ```bash
-codex-apiswitch model --name vayne --model gpt-5.4
+codex-switch model --name vayne --model gpt-5.4
 ```
 
 List managed profiles and the current default:
 
 ```bash
-codex-apiswitch list
+codex-switch list
 ```
 
 Experimental: force the latest Codex Desktop thread record to a relay model:
 
 ```bash
-codex-apiswitch thread-model --provider vayne --model claude-opus-4-7
+codex-switch thread-model --provider vayne --model claude-opus-4-7
 ```
 
 This backs up `~/.codex/state_5.sqlite` before editing it. Quit Codex Desktop before using this command, then reopen the app.
@@ -92,13 +92,13 @@ This backs up `~/.codex/state_5.sqlite` before editing it. Quit Codex Desktop be
 Set a profile as the default:
 
 ```bash
-codex-apiswitch default --name vayne
+codex-switch default --name vayne
 ```
 
 Switch back to the ChatGPT account login:
 
 ```bash
-codex-apiswitch account
+codex-switch account
 ```
 
 After using `Use Relay` or `Use Account` in the web UI, you can start Codex with:
@@ -114,7 +114,7 @@ If you prefer an environment variable instead of a key file:
 ```bash
 export VAYNE_API_KEY="sk-..."
 
-codex-apiswitch setup \
+codex-switch setup \
   --name vayne \
   --base-url https://api.vayne.cc.cd/v1 \
   --model gpt-5.5 \
@@ -124,13 +124,13 @@ codex-apiswitch setup \
 ## Remove
 
 ```bash
-codex-apiswitch remove --name vayne
+codex-switch remove --name vayne
 ```
 
 Remove the profile and delete its local key file:
 
 ```bash
-codex-apiswitch remove --name vayne --delete-key
+codex-switch remove --name vayne --delete-key
 ```
 
 ## Compatibility
