@@ -549,6 +549,36 @@ function modelIdsFromResponse(payload) {
     .sort((a, b) => a.localeCompare(b));
 }
 
+function parseErrorMessage(text) {
+  try {
+    const payload = JSON.parse(text);
+    const error = payload && payload.error;
+    if (error && typeof error.message === "string") return error.message;
+    if (typeof payload.message === "string") return payload.message;
+  } catch (_) {
+    // Some relays return plain text or HTML for errors.
+  }
+  return text.trim().replace(/\s+/g, " ").slice(0, 240);
+}
+
+function modelListHttpError(status, text) {
+  const detail = parseErrorMessage(text);
+  const suffix = detail ? ` Relay said: ${detail}` : "";
+  if (status === 401) {
+    return `Model list request failed with HTTP 401: API key is invalid, expired, or not authorized for this relay.${suffix}`;
+  }
+  if (status === 403) {
+    return `Model list request failed with HTTP 403: this API key does not have permission to list models, or the relay blocked the request.${suffix}`;
+  }
+  if (status === 404) {
+    return `Model list request failed with HTTP 404: the relay does not expose a /models endpoint at this base URL.${suffix}`;
+  }
+  if (status === 429) {
+    return `Model list request failed with HTTP 429: the relay is rate limited or the account quota is exhausted.${suffix}`;
+  }
+  return `Model list request failed with HTTP ${status}.${suffix}`;
+}
+
 async function fetchModels(baseUrl, apiKey) {
   if (!baseUrl) throw new Error("Base URL is required.");
   if (!apiKey) throw new Error("API key is required to fetch models.");
@@ -561,7 +591,7 @@ async function fetchModels(baseUrl, apiKey) {
   });
   const text = await response.text();
   if (!response.ok) {
-    throw new Error(`Model list request failed with HTTP ${response.status}: ${text.slice(0, 240)}`);
+    throw new Error(modelListHttpError(response.status, text));
   }
   return modelIdsFromResponse(JSON.parse(text));
 }
