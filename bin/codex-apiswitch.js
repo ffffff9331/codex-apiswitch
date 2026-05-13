@@ -7,25 +7,25 @@ const path = require("node:path");
 const readline = require("node:readline");
 const { execFile, execFileSync } = require("node:child_process");
 
-const START = "# >>> codex-switch";
-const END = "# <<< codex-switch";
+const START = "# >>> codex-apiswitch";
+const END = "# <<< codex-apiswitch";
 
 function usage() {
   return `
-codex-switch
+codex-apiswitch
 
 Configure a Codex custom provider profile for an OpenAI Responses-compatible relay API.
 
 Usage:
-  codex-switch setup --name <profile> --base-url <url> --model <model>
-  codex-switch setup --name vayne --base-url https://api.example.com/v1 --model gpt-5.5
-  codex-switch model --name <profile> --model <model>
-  codex-switch thread-model --model <model> [--provider <provider>] [--thread <id>]
-  codex-switch list
-  codex-switch default --name <profile>
-  codex-switch account
-  codex-switch web
-  codex-switch remove --name <profile>
+  codex-apiswitch setup --name <profile> --base-url <url> --model <model>
+  codex-apiswitch setup --name vayne --base-url https://api.example.com/v1 --model gpt-5.5
+  codex-apiswitch model --name <profile> --model <model>
+  codex-apiswitch thread-model --model <model> [--provider <provider>] [--thread <id>]
+  codex-apiswitch list
+  codex-apiswitch default --name <profile>
+  codex-apiswitch account
+  codex-apiswitch web
+  codex-apiswitch remove --name <profile>
 
 Options:
   --codex-home <dir>       Defaults to ~/.codex
@@ -157,7 +157,7 @@ function resolvePaths(args) {
   const codexHome = expandHome(args.codexHome || "~/.codex");
   const configPath = path.join(codexHome, "config.toml");
   const keyFile = expandHome(args.keyFile || path.join(codexHome, `${args.name}_api_key`));
-  const catalogFile = path.join(codexHome, "codex-switch", `${args.name}_models.json`);
+  const catalogFile = path.join(codexHome, "codex-apiswitch", `${args.name}_models.json`);
   return { codexHome, configPath, keyFile, catalogFile };
 }
 
@@ -165,7 +165,7 @@ function modelCatalogEntry(model) {
   return {
     slug: model,
     display_name: model,
-    description: "Relay model managed by codex-switch.",
+    description: "Relay model managed by codex-apiswitch.",
     default_reasoning_level: "medium",
     supported_reasoning_levels: [
       { effort: "low", description: "Fast responses with lighter reasoning" },
@@ -213,7 +213,7 @@ function writeModelCatalog(codexHome, name, models) {
   const uniqueModels = [...new Set(models.filter((model) => typeof model === "string" && model.trim()))];
   if (!uniqueModels.length) return "";
 
-  const catalogFile = path.join(codexHome, "codex-switch", `${name}_models.json`);
+  const catalogFile = path.join(codexHome, "codex-apiswitch", `${name}_models.json`);
   fs.mkdirSync(path.dirname(catalogFile), { recursive: true, mode: 0o700 });
   fs.writeFileSync(
     catalogFile,
@@ -379,7 +379,7 @@ function latestThreadId(stateDb) {
 
 function backupStateDb(stateDb) {
   const stamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
-  const backupPath = `${stateDb}.codex-switch-${stamp}.bak`;
+  const backupPath = `${stateDb}.codex-apiswitch-${stamp}.bak`;
   fs.copyFileSync(stateDb, backupPath);
   return backupPath;
 }
@@ -602,7 +602,7 @@ function htmlPage() {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Codex Switch</title>
+  <title>Codex API Switch</title>
   <style>
     :root {
       color-scheme: light;
@@ -986,7 +986,7 @@ function htmlPage() {
   <main>
     <header>
       <div>
-        <h1>Codex Switch</h1>
+        <h1>Codex API Switch</h1>
         <p class="subtitle" data-i18n="subtitle">Configure Codex to use a Responses-compatible relay API without putting API keys in config.toml.</p>
       </div>
       <div class="top-actions">
@@ -1041,7 +1041,7 @@ function htmlPage() {
         <div class="promo">
           <div>
             <p class="promo-title" data-i18n="promoTitle">Recommended relay: Vayne API</p>
-            <p class="promo-copy" data-i18n="promoCopy">A relay option for using compatible API models with Codex Switch.</p>
+            <p class="promo-copy" data-i18n="promoCopy">A relay option for using compatible API models with Codex API Switch.</p>
           </div>
           <a class="promo-link" href="https://vayne.cc.cd/" target="_blank" rel="noopener noreferrer" data-i18n="promoAction">View</a>
         </div>
@@ -1079,7 +1079,7 @@ function htmlPage() {
     const configPanel = document.querySelector("#config-panel");
     const toggleConfig = document.querySelector("#toggle-config");
     let loadedModels = [];
-    let lang = localStorage.getItem("codex-switch-lang") || ((navigator.language || "").startsWith("zh") ? "zh" : "en");
+    let lang = localStorage.getItem("codex-apiswitch-lang") || ((navigator.language || "").startsWith("zh") ? "zh" : "en");
 
     const i18n = {
       en: {
@@ -1093,7 +1093,7 @@ function htmlPage() {
         relaysHint: "Saved relay bases appear here.",
         emptyRelays: "No relays yet. Click Add Profile to create one.",
         promoTitle: "Recommended relay: Vayne API",
-        promoCopy: "A relay option for using compatible API models with Codex Switch.",
+        promoCopy: "A relay option for using compatible API models with Codex API Switch.",
         promoAction: "View",
         profileTitle: "Profile",
         nameLabel: "Name",
@@ -1140,7 +1140,7 @@ function htmlPage() {
         relaysHint: "保存后的中转 Base 都在这里。",
         emptyRelays: "还没有中转站，点“新增配置”添加一个。",
         promoTitle: "推荐中转站：Vayne API",
-        promoCopy: "适合配合 Codex Switch 使用的兼容 API 中转站。",
+        promoCopy: "适合配合 Codex API Switch 使用的兼容 API 中转站。",
         promoAction: "查看",
         profileTitle: "配置",
         nameLabel: "名称",
@@ -1431,12 +1431,12 @@ function htmlPage() {
 
     document.querySelector("#lang-zh").addEventListener("click", () => {
       lang = "zh";
-      localStorage.setItem("codex-switch-lang", lang);
+      localStorage.setItem("codex-apiswitch-lang", lang);
       applyLanguage();
     });
     document.querySelector("#lang-en").addEventListener("click", () => {
       lang = "en";
-      localStorage.setItem("codex-switch-lang", lang);
+      localStorage.setItem("codex-apiswitch-lang", lang);
       applyLanguage();
     });
 
@@ -1583,7 +1583,7 @@ function startWeb(args) {
   server.listen(port, host, () => {
     const address = server.address();
     const url = `http://${host}:${address.port}`;
-    console.log(`Codex Switch web UI: ${url}`);
+    console.log(`Codex API Switch web UI: ${url}`);
     if (!args.noOpen) {
       openBrowser(url);
     }

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Switch Codex CLI between OpenAI Responses-compatible relay API profiles.",
   "bin": {
-    "codex-switch": "bin/codex-switch.js"
+    "codex-apiswitch": "bin/codex-apiswitch.js"
   },
   "files": [
     "bin/",

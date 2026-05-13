@@ -5,11 +5,11 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const bin = path.join(__dirname, "..", "bin", "codex-switch.js");
+const bin = path.join(__dirname, "..", "bin", "codex-apiswitch.js");
 
-describe("codex-switch", () => {
+describe("codex-apiswitch", () => {
   it("writes a managed profile without committing the key to config.toml", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-switch-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-apiswitch-"));
     const result = spawnSync(
       process.execPath,
       [
@@ -38,13 +38,13 @@ describe("codex-switch", () => {
     assert.match(config, /model_catalog_json = ".+vayne_models\.json"/);
     assert.doesNotMatch(config, /sk-test/);
     assert.equal(fs.readFileSync(path.join(dir, "vayne_api_key"), "utf8"), "sk-test\n");
-    const catalog = JSON.parse(fs.readFileSync(path.join(dir, "codex-switch", "vayne_models.json"), "utf8"));
+    const catalog = JSON.parse(fs.readFileSync(path.join(dir, "codex-apiswitch", "vayne_models.json"), "utf8"));
     assert.equal(catalog.models[0].slug, "gpt-5.5");
     assert.equal(catalog.models[0].visibility, "list");
   });
 
   it("removes only the managed profile block", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-switch-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-apiswitch-"));
     spawnSync(
       process.execPath,
       [
@@ -75,7 +75,7 @@ describe("codex-switch", () => {
   });
 
   it("can delete the local key file when removing a profile", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-switch-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-apiswitch-"));
     spawnSync(
       process.execPath,
       [
@@ -104,7 +104,7 @@ describe("codex-switch", () => {
   });
 
   it("can store multiple relay profiles", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-switch-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-apiswitch-"));
     const first = spawnSync(
       process.execPath,
       [
@@ -149,7 +149,7 @@ describe("codex-switch", () => {
   });
 
   it("updates the model for an existing managed profile without replacing the key", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-switch-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-apiswitch-"));
     const setup = spawnSync(
       process.execPath,
       [
@@ -189,7 +189,7 @@ describe("codex-switch", () => {
     assert.doesNotMatch(config, /model = "gpt-5\.5"/);
     assert.match(config, /base_url = "https:\/\/api\.vayne\.cc\.cd\/v1"/);
     assert.equal(fs.readFileSync(path.join(dir, "vayne_api_key"), "utf8"), "sk-one\n");
-    const catalog = JSON.parse(fs.readFileSync(path.join(dir, "codex-switch", "vayne_models.json"), "utf8"));
+    const catalog = JSON.parse(fs.readFileSync(path.join(dir, "codex-apiswitch", "vayne_models.json"), "utf8"));
     assert.deepEqual(
       catalog.models.map((model) => model.slug).sort(),
       ["gpt-5.4", "gpt-5.5"],
@@ -197,7 +197,7 @@ describe("codex-switch", () => {
   });
 
   it("sets a default profile using the config key", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-switch-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-apiswitch-"));
     const setup = spawnSync(
       process.execPath,
       [
@@ -238,7 +238,7 @@ describe("codex-switch", () => {
   });
 
   it("lists account and managed relay profiles", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-switch-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-apiswitch-"));
     const setup = spawnSync(
       process.execPath,
       [
@@ -270,7 +270,7 @@ describe("codex-switch", () => {
   });
 
   it("switches back to account login by clearing the profile key", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-switch-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-apiswitch-"));
     const configPath = path.join(dir, "config.toml");
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(configPath, 'profile = "vayne"\nmodel = "gpt-5.5"\n');
@@ -288,7 +288,7 @@ describe("codex-switch", () => {
   });
 
   it("updates the latest desktop thread model in the state database", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-switch-"));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-apiswitch-"));
     const dbPath = path.join(dir, "state_5.sqlite");
     spawnSync(
       "sqlite3",
@@ -338,13 +338,13 @@ describe("codex-switch", () => {
     });
 
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /codex-switch web/);
-    assert.match(result.stdout, /codex-switch list/);
-    assert.match(result.stdout, /codex-switch account/);
+    assert.match(result.stdout, /codex-apiswitch web/);
+    assert.match(result.stdout, /codex-apiswitch list/);
+    assert.match(result.stdout, /codex-apiswitch account/);
     assert.match(result.stdout, /--delete-key/);
     assert.match(result.stdout, /--no-open/);
     assert.match(result.stdout, /--port <port>/);
-    assert.match(result.stdout, /codex-switch model --name <profile> --model <model>/);
-    assert.match(result.stdout, /codex-switch thread-model --model <model>/);
+    assert.match(result.stdout, /codex-apiswitch model --name <profile> --model <model>/);
+    assert.match(result.stdout, /codex-apiswitch thread-model --model <model>/);
   });
 });
