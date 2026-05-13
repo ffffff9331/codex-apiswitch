@@ -7,11 +7,38 @@ It also writes a profile-scoped Codex model catalog at `~/.codex/codex-switch/<p
 
 ## Install
 
+This project is currently distributed from GitHub, not from the npm registry.
+
+Install directly from GitHub:
+
 ```bash
-npm install -g codex-switch
+npm install -g github:ffffff9331/codex-switch
 ```
 
-Or run from a checkout:
+Then start the web UI:
+
+```bash
+codex-switch web
+```
+
+If you cloned the repository, you can run it without installing globally:
+
+```bash
+node bin/codex-switch.js web
+```
+
+For local development, you can link the checkout as a global command:
+
+```bash
+git clone https://github.com/ffffff9331/codex-switch.git
+cd codex-switch
+npm install -g .
+codex-switch web
+```
+
+The package name `codex-switch` may exist on the public npm registry, but this project is not published there yet. Use the GitHub install command above to install this version.
+
+Check the CLI help:
 
 ```bash
 node bin/codex-switch.js --help
