@@ -86,6 +86,9 @@ When switching in the web UI:
 
 - Leave `Also migrate chat history and restart Codex` unchecked to only change the active API connection.
 - Check it to migrate local Codex chat history to the selected provider and restart the macOS Codex app so history is reloaded.
+- Experimental: leaving it unchecked may help preserve account-linked workspace behavior, such as rollback controls, because codex-switch does not rewrite local thread provider metadata.
+
+Note: history migration keeps local Codex conversations visible across account and relay modes. It does not turn relay mode into a fully account-linked workspace. Codex features that depend on your logged-in account and its bound Git repository, such as account-linked rollback buttons, may still require switching back to account login.
 
 ## Usage
 
@@ -136,6 +139,8 @@ codex-switch account
 
 When switching between account login and a relay profile, codex-switch also moves local Codex thread records to the selected provider so history remains visible across modes. It backs up `~/.codex/state_5.sqlite` before changing the thread database.
 
+This migration is for conversation visibility. It does not replace Codex account-only features tied to a logged-in workspace or bound Git repository.
+
 On macOS, you can also restart the Codex app after switching:
 
 ```bash
@@ -149,6 +154,14 @@ If you only want to change the active provider and leave thread history untouche
 codex-switch default --name vayne --no-migrate-history
 codex-switch account --no-migrate-history
 ```
+
+Experimental: when switching from account login to a relay, preserve account workspace metadata while only changing the API provider:
+
+```bash
+codex-switch default --name vayne --keep-account-workspace
+```
+
+This may help account-linked repository features keep working, but it depends on Codex Desktop internals and is not guaranteed.
 
 After using `Use Relay` or `Use Account` in the web UI, you can start Codex with:
 
@@ -272,6 +285,9 @@ Web 页面可以完成这些操作：
 
 - 不勾选：只切换 Codex 当前使用账号登录还是中转站，不迁移历史，不重启 Codex。
 - 勾选：先把本地 Codex 历史会话迁移到目标 provider，再重启 macOS Codex App，让历史重新加载。
+- 实验思路：不勾选时不会重写本地线程 provider 元数据，可能更有利于保留账号绑定工作区能力，例如代码回退按钮。
+
+注意：历史迁移的目标是让本地 Codex 对话在账号模式和中转站模式之间保持可见。它不会把中转站模式变成完整的账号绑定工作区。依赖账号登录和账号绑定 Git 代码库的功能，例如账号侧的代码回退按钮，可能仍然需要切回账号登录后才能正常使用。
 
 ## 命令行用法
 
@@ -320,6 +336,8 @@ codex-switch account
 ~/.codex/state_5.sqlite
 ```
 
+这只是聊天历史可见性的迁移，不等于替代 Codex 账号绑定仓库的专属能力。
+
 如果你希望切换后自动重启 macOS Codex App：
 
 ```bash
@@ -333,6 +351,14 @@ codex-switch account --restart-codex
 codex-switch default --name vayne --no-migrate-history
 codex-switch account --no-migrate-history
 ```
+
+实验功能：从账号登录切到中转站时，只改 API provider，尽量保留账号工作区元数据：
+
+```bash
+codex-switch default --name vayne --keep-account-workspace
+```
+
+这个功能可能有助于保留账号绑定仓库相关能力，但它依赖 Codex Desktop 内部行为，不能保证一定成功。
 
 实验功能：修改最近一个 Codex Desktop 线程记录的模型：
 

@@ -40,6 +40,7 @@ Options:
   --port <port>            Web server port, default 8787
   --no-open                Do not open the web UI in a browser
   --no-migrate-history     Do not move Codex threads to the selected provider
+  --keep-account-workspace Experimental: only switch API provider, preserve thread workspace metadata
   --restart-codex          Restart the macOS Codex app after switching
   --force                  Overwrite an existing key file without prompting
 
@@ -60,7 +61,14 @@ function parseArgs(argv) {
     }
 
     const key = item.slice(2).replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-    if (key === "force" || key === "deleteKey" || key === "noOpen" || key === "noMigrateHistory" || key === "restartCodex") {
+    if (
+      key === "force" ||
+      key === "deleteKey" ||
+      key === "noOpen" ||
+      key === "noMigrateHistory" ||
+      key === "keepAccountWorkspace" ||
+      key === "restartCodex"
+    ) {
       args[key] = true;
       continue;
     }
@@ -313,8 +321,11 @@ function defaultCommand(args) {
     throw new Error(`Managed profile not found: ${args.name}`);
   }
   setDefaultProfile(args.name, codexHome);
-  const migration = args.noMigrateHistory ? null : migrateThreads(codexHome, providerId(args.name));
+  const migration = args.noMigrateHistory || args.keepAccountWorkspace ? null : migrateThreads(codexHome, providerId(args.name));
   console.log(`Set default Codex profile: ${args.name}`);
+  if (args.keepAccountWorkspace) {
+    console.log("Kept Codex thread workspace metadata unchanged.");
+  }
   if (migration) {
     console.log(`Moved ${migration.changed} thread(s) to provider: ${providerId(args.name)}`);
     console.log(`Updated ${migration.rolloutChanged} rollout file(s).`);
@@ -1309,7 +1320,7 @@ function htmlPage() {
         remove: "Remove",
         hint: "Edit a saved relay from the list, change fields, then Save. Leave API key blank to keep the saved local key.",
         restartCodex: "Also migrate chat history and restart Codex",
-        restartCodexHint: "Leave unchecked to only change the API connection.",
+        restartCodexHint: "Leave unchecked to only change the API connection. Account-linked repo rollback may still require account login.",
         current: "current",
         edit: "Edit",
         useAccount: "Use Account",
@@ -1358,7 +1369,7 @@ function htmlPage() {
         remove: "删除",
         hint: "从列表点编辑后修改并保存。API 密钥留空会继续使用已保存的本地密钥。",
         restartCodex: "同时迁移聊天历史并重启 Codex",
-        restartCodexHint: "不勾选则只修改 API 连接方式。",
+        restartCodexHint: "不勾选则只修改 API 连接方式。账号绑定代码库的回退功能可能仍需账号登录。",
         current: "当前",
         edit: "编辑",
         useAccount: "使用账号",
@@ -1744,7 +1755,7 @@ function startWeb(args) {
       if (req.method === "POST" && url.pathname === "/api/default") {
         const payload = normalizeWebPayload(await readJson(req));
         setDefaultProfile(payload.name, codexHome);
-        const migration = migrateThreads(codexHome, providerId(payload.name));
+        const migration = payload.restartCodex ? migrateThreads(codexHome, providerId(payload.name)) : null;
         if (payload.restartCodex) restartCodexApp();
         sendJson(res, 200, {
           message: payload.restartCodex
@@ -1754,7 +1765,7 @@ function startWeb(args) {
             `Config: ${path.join(codexHome, "config.toml")}`,
             migration
               ? `Moved ${migration.changed} thread(s), updated ${migration.rolloutChanged} rollout file(s), and repaired ${migration.repairedRolloutPaths} rollout path(s) to provider '${providerId(payload.name)}'. Backup: ${migration.backupPath}`
-              : "Threads already use this provider.",
+              : payload.restartCodex ? "Threads already use this provider." : "Only changed the active API connection.",
             "Run: codex",
           ],
         });
@@ -1764,7 +1775,7 @@ function startWeb(args) {
       if (req.method === "POST" && url.pathname === "/api/account") {
         const payload = normalizeWebPayload(await readJson(req));
         clearDefaultProfile(codexHome);
-        const migration = migrateThreads(codexHome, "openai");
+        const migration = payload.restartCodex ? migrateThreads(codexHome, "openai") : null;
         if (payload.restartCodex) restartCodexApp();
         sendJson(res, 200, {
           message: payload.restartCodex
@@ -1774,7 +1785,7 @@ function startWeb(args) {
             `Config: ${path.join(codexHome, "config.toml")}`,
             migration
               ? `Moved ${migration.changed} thread(s), updated ${migration.rolloutChanged} rollout file(s), and repaired ${migration.repairedRolloutPaths} rollout path(s) to provider 'openai'. Backup: ${migration.backupPath}`
-              : "Threads already use the account provider.",
+              : payload.restartCodex ? "Threads already use the account provider." : "Only changed the active API connection.",
             "Run: codex",
           ],
         });

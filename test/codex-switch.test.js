@@ -443,6 +443,54 @@ describe("codex-switch", () => {
     assert.match(result.stdout, /base_url: https:\/\/api\.vayne\.cc\.cd\/v1/);
   });
 
+  it("can switch API provider while preserving account workspace metadata", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-switch-"));
+    const setup = spawnSync(
+      process.execPath,
+      [
+        bin,
+        "setup",
+        "--codex-home",
+        dir,
+        "--name",
+        "vayne",
+        "--base-url",
+        "https://api.vayne.cc.cd/v1",
+        "--model",
+        "gpt-5.5",
+      ],
+      { input: "sk-one\n", encoding: "utf8" },
+    );
+    assert.equal(setup.status, 0, setup.stderr);
+
+    const dbPath = path.join(dir, "state_5.sqlite");
+    spawnSync(
+      "sqlite3",
+      [
+        dbPath,
+        [
+          "create table threads (id text primary key, archived integer default 0, model text, model_provider text, rollout_path text);",
+          "insert into threads (id, archived, model, model_provider, rollout_path) values ('account-thread', 0, 'gpt-5.4', 'openai', '');",
+        ].join(" "),
+      ],
+      { encoding: "utf8" },
+    );
+
+    const result = spawnSync(
+      process.execPath,
+      [bin, "default", "--codex-home", dir, "--name", "vayne", "--keep-account-workspace"],
+      { encoding: "utf8" },
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Kept Codex thread workspace metadata unchanged/);
+    const rows = spawnSync("sqlite3", [dbPath, "select model_provider from threads where id = 'account-thread';"], {
+      encoding: "utf8",
+    });
+    assert.equal(rows.status, 0, rows.stderr);
+    assert.equal(rows.stdout.trim(), "openai");
+  });
+
   it("switches back to account login by clearing the profile key", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-switch-"));
     const configPath = path.join(dir, "config.toml");
@@ -546,6 +594,7 @@ describe("codex-switch", () => {
     assert.match(result.stdout, /--delete-key/);
     assert.match(result.stdout, /--no-open/);
     assert.match(result.stdout, /--port <port>/);
+    assert.match(result.stdout, /--keep-account-workspace/);
     assert.match(result.stdout, /--restart-codex/);
     assert.match(result.stdout, /codex-switch model --name <profile> --model <model>/);
     assert.match(result.stdout, /codex-switch thread-model --model <model>/);
