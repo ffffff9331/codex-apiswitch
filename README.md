@@ -128,6 +128,15 @@ Switch back to the ChatGPT account login:
 codex-switch account
 ```
 
+When switching between account login and a relay profile, codex-switch also moves local Codex thread records to the selected provider so history remains visible across modes. It backs up `~/.codex/state_5.sqlite` before changing the thread database.
+
+If you only want to change the active provider and leave thread history untouched:
+
+```bash
+codex-switch default --name vayne --no-migrate-history
+codex-switch account --no-migrate-history
+```
+
 After using `Use Relay` or `Use Account` in the web UI, you can start Codex with:
 
 ```bash

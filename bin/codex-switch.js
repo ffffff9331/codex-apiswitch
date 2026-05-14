@@ -39,6 +39,7 @@ Options:
   --host <host>            Web server host, default 127.0.0.1
   --port <port>            Web server port, default 8787
   --no-open                Do not open the web UI in a browser
+  --no-migrate-history     Do not move Codex threads to the selected provider
   --force                  Overwrite an existing key file without prompting
 
 Security:
@@ -58,7 +59,7 @@ function parseArgs(argv) {
     }
 
     const key = item.slice(2).replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-    if (key === "force" || key === "deleteKey" || key === "noOpen") {
+    if (key === "force" || key === "deleteKey" || key === "noOpen" || key === "noMigrateHistory") {
       args[key] = true;
       continue;
     }
@@ -306,15 +307,29 @@ function remove(args) {
 
 function defaultCommand(args) {
   const codexHome = expandHome(args.codexHome || "~/.codex");
+  const profile = getManagedProfile(codexHome, args.name);
+  if (!profile) {
+    throw new Error(`Managed profile not found: ${args.name}`);
+  }
   setDefaultProfile(args.name, codexHome);
+  const migration = args.noMigrateHistory ? null : migrateThreads(codexHome, providerId(args.name));
   console.log(`Set default Codex profile: ${args.name}`);
+  if (migration) {
+    console.log(`Moved ${migration.changed} thread(s) to provider: ${providerId(args.name)}`);
+    console.log(`Backup: ${migration.backupPath}`);
+  }
   console.log("Run: codex");
 }
 
 function accountCommand(args) {
   const codexHome = expandHome(args.codexHome || "~/.codex");
   clearDefaultProfile(codexHome);
+  const migration = args.noMigrateHistory ? null : migrateThreads(codexHome, "openai");
   console.log("Set Codex to use ChatGPT account login.");
+  if (migration) {
+    console.log(`Moved ${migration.changed} thread(s) to provider: openai`);
+    console.log(`Backup: ${migration.backupPath}`);
+  }
   console.log("Run: codex");
 }
 
@@ -382,6 +397,31 @@ function backupStateDb(stateDb) {
   const backupPath = `${stateDb}.codex-switch-${stamp}.bak`;
   fs.copyFileSync(stateDb, backupPath);
   return backupPath;
+}
+
+function migrateThreads(codexHome, provider) {
+  validateName(provider);
+  const stateDb = path.join(codexHome, "state_5.sqlite");
+  if (!fs.existsSync(stateDb)) return null;
+
+  const changed = Number(
+    sqlite(
+      stateDb,
+      `select count(*) from threads where coalesce(model_provider, '') != ${sqlString(provider)};`,
+    ),
+  );
+  if (!changed) return null;
+
+  const backupPath = backupStateDb(stateDb);
+  sqlite(
+    stateDb,
+    [
+      "update threads",
+      `set model_provider = ${sqlString(provider)}`,
+      `where coalesce(model_provider, '') != ${sqlString(provider)};`,
+    ].join(" "),
+  );
+  return { changed, backupPath };
 }
 
 function threadModelCommand(args) {
@@ -1569,9 +1609,16 @@ function startWeb(args) {
       if (req.method === "POST" && url.pathname === "/api/default") {
         const payload = normalizeWebPayload(await readJson(req));
         setDefaultProfile(payload.name, codexHome);
+        const migration = migrateThreads(codexHome, providerId(payload.name));
         sendJson(res, 200, {
           message: `Switched Codex to relay profile '${payload.name}'.`,
-          details: [`Config: ${path.join(codexHome, "config.toml")}`, "Run: codex"],
+          details: [
+            `Config: ${path.join(codexHome, "config.toml")}`,
+            migration
+              ? `Moved ${migration.changed} thread(s) to provider '${providerId(payload.name)}'. Backup: ${migration.backupPath}`
+              : "Threads already use this provider.",
+            "Run: codex",
+          ],
         });
         return;
       }
@@ -1579,9 +1626,16 @@ function startWeb(args) {
       if (req.method === "POST" && url.pathname === "/api/account") {
         await readJson(req);
         clearDefaultProfile(codexHome);
+        const migration = migrateThreads(codexHome, "openai");
         sendJson(res, 200, {
           message: "Switched Codex to ChatGPT account login.",
-          details: [`Config: ${path.join(codexHome, "config.toml")}`, "Run: codex"],
+          details: [
+            `Config: ${path.join(codexHome, "config.toml")}`,
+            migration
+              ? `Moved ${migration.changed} thread(s) to provider 'openai'. Backup: ${migration.backupPath}`
+              : "Threads already use the account provider.",
+            "Run: codex",
+          ],
         });
         return;
       }

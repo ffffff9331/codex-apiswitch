@@ -237,6 +237,61 @@ describe("codex-switch", () => {
     assert.match(fs.readFileSync(configPath, "utf8"), /^profile = "vayne"$/m);
   });
 
+  it("moves all threads to the selected relay provider", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-switch-"));
+    const setup = spawnSync(
+      process.execPath,
+      [
+        bin,
+        "setup",
+        "--codex-home",
+        dir,
+        "--name",
+        "vayne",
+        "--base-url",
+        "https://api.vayne.cc.cd/v1",
+        "--model",
+        "gpt-5.5",
+      ],
+      { input: "sk-one\n", encoding: "utf8" },
+    );
+    assert.equal(setup.status, 0, setup.stderr);
+
+    const dbPath = path.join(dir, "state_5.sqlite");
+    spawnSync(
+      "sqlite3",
+      [
+        dbPath,
+        [
+          "create table threads (id text primary key, archived integer default 0, model text, model_provider text);",
+          "insert into threads (id, archived, model, model_provider) values ('active-account', 0, 'gpt-5.4', 'openai');",
+          "insert into threads (id, archived, model, model_provider) values ('active-relay', 0, 'gpt-5.5', 'vayne');",
+          "insert into threads (id, archived, model, model_provider) values ('archived-account', 1, 'gpt-5.4', 'openai');",
+        ].join(" "),
+      ],
+      { encoding: "utf8" },
+    );
+
+    const result = spawnSync(
+      process.execPath,
+      [bin, "default", "--codex-home", dir, "--name", "vayne"],
+      { encoding: "utf8" },
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Moved 2 thread\(s\) to provider: vayne/);
+    const rows = spawnSync(
+      "sqlite3",
+      [dbPath, "select id || '|' || model || '|' || model_provider from threads order by id;"],
+      { encoding: "utf8" },
+    );
+    assert.equal(rows.status, 0, rows.stderr);
+    assert.match(rows.stdout, /active-account\|gpt-5\.4\|vayne/);
+    assert.match(rows.stdout, /active-relay\|gpt-5\.5\|vayne/);
+    assert.match(rows.stdout, /archived-account\|gpt-5\.4\|vayne/);
+    assert.equal(fs.readdirSync(dir).filter((name) => name.includes(".bak")).length, 1);
+  });
+
   it("lists account and managed relay profiles", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-switch-"));
     const setup = spawnSync(
@@ -274,6 +329,19 @@ describe("codex-switch", () => {
     const configPath = path.join(dir, "config.toml");
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(configPath, 'profile = "vayne"\nmodel = "gpt-5.5"\n');
+    const dbPath = path.join(dir, "state_5.sqlite");
+    spawnSync(
+      "sqlite3",
+      [
+        dbPath,
+        [
+          "create table threads (id text primary key, archived integer default 0, model text, model_provider text);",
+          "insert into threads (id, archived, model, model_provider) values ('active-relay', 0, 'gpt-5.5', 'vayne');",
+          "insert into threads (id, archived, model, model_provider) values ('archived-relay', 1, 'gpt-5.5', 'vayne');",
+        ].join(" "),
+      ],
+      { encoding: "utf8" },
+    );
 
     const result = spawnSync(
       process.execPath,
@@ -285,6 +353,15 @@ describe("codex-switch", () => {
     const config = fs.readFileSync(configPath, "utf8");
     assert.doesNotMatch(config, /^profile\s*=/m);
     assert.match(config, /^model = "gpt-5\.5"$/m);
+    assert.match(result.stdout, /Moved 2 thread\(s\) to provider: openai/);
+    const rows = spawnSync(
+      "sqlite3",
+      [dbPath, "select id || '|' || model || '|' || model_provider from threads order by id;"],
+      { encoding: "utf8" },
+    );
+    assert.equal(rows.status, 0, rows.stderr);
+    assert.match(rows.stdout, /active-relay\|gpt-5\.5\|openai/);
+    assert.match(rows.stdout, /archived-relay\|gpt-5\.5\|openai/);
   });
 
   it("updates the latest desktop thread model in the state database", () => {
