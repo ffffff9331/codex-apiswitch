@@ -2,6 +2,14 @@
 
 Small local web UI and CLI for adding OpenAI Responses-compatible relay API profiles to Codex.
 
+This repository intentionally keeps the stable custom-provider workflow:
+
+- Use a managed relay profile such as `vayne`.
+- Switch Codex between the original ChatGPT account profile and the relay profile.
+- Optionally migrate local Codex chat history when switching.
+- Do not override Codex's built-in `openai` provider.
+- Do not run an account-proxy, local `/v1` forwarding proxy, or background LaunchAgent service.
+
 It edits `~/.codex/config.toml` and stores the API key outside the config file in a local `chmod 600` key file.
 It also writes a profile-scoped Codex model catalog at `~/.codex/codex-switch/<profile>_models.json`. Codex CLI can read this catalog; Codex Desktop may still hide custom provider models in its built-in model picker.
 
@@ -89,6 +97,8 @@ When switching in the web UI:
 - Experimental: leaving it unchecked may help preserve account-linked workspace behavior, such as rollback controls, because codex-switch does not rewrite local thread provider metadata.
 
 Note: history migration keeps local Codex conversations visible across account and relay modes. It does not turn relay mode into a fully account-linked workspace. Codex features that depend on your logged-in account and its bound Git repository, such as account-linked rollback buttons, may still require switching back to account login.
+
+This stable version does not include the later experimental account-proxy/local-proxy service. If you need relay access, use a custom provider profile such as `vayne`.
 
 ## Usage
 
@@ -207,6 +217,14 @@ Relays that only support `/v1/chat/completions` are not enough.
 
 `codex-switch` 是一个本地 Web UI 和命令行工具，用来给 Codex 添加兼容 OpenAI Responses API 的中转站配置。
 
+当前仓库刻意保留稳定的“自定义 provider”方案：
+
+- 使用 `vayne` 这类中转站 profile。
+- 在原始 ChatGPT 账号登录和中转站 profile 之间切换。
+- 切换时可以选择是否迁移本地 Codex 聊天历史。
+- 不覆盖 Codex 内置的 `openai` provider。
+- 不启用 account-proxy、本地 `/v1` 转发代理或后台 LaunchAgent 服务。
+
 它会修改 `~/.codex/config.toml`，但不会把 API Key 写进配置文件。默认情况下，API Key 会保存到本地 `chmod 600` 权限的密钥文件里。
 
 它还会为每个配置写入 Codex 模型目录：
@@ -288,6 +306,8 @@ Web 页面可以完成这些操作：
 - 实验思路：不勾选时不会重写本地线程 provider 元数据，可能更有利于保留账号绑定工作区能力，例如代码回退按钮。
 
 注意：历史迁移的目标是让本地 Codex 对话在账号模式和中转站模式之间保持可见。它不会把中转站模式变成完整的账号绑定工作区。依赖账号登录和账号绑定 Git 代码库的功能，例如账号侧的代码回退按钮，可能仍然需要切回账号登录后才能正常使用。
+
+这个稳定版本不包含后续实验性的 account-proxy / 本地代理服务。如果要走中转站，请使用 `vayne` 这类自定义 provider profile。
 
 ## 命令行用法
 
