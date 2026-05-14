@@ -939,6 +939,11 @@ function htmlPage() {
       margin: 0;
       accent-color: var(--accent);
     }
+    .option-hint {
+      margin: 6px 0 0 25px;
+      color: var(--muted);
+      font-size: 12px;
+    }
     .section-header {
       display: flex;
       align-items: center;
@@ -1237,7 +1242,8 @@ function htmlPage() {
           </div>
           <a class="promo-link" href="https://vayne.cc.cd/" target="_blank" rel="noopener noreferrer" data-i18n="promoAction">View</a>
         </div>
-        <label class="option-row"><input id="restartCodex" name="restartCodex" type="checkbox"><span data-i18n="restartCodex">Restart Codex after switching</span></label>
+        <label class="option-row"><input id="restartCodex" name="restartCodex" type="checkbox"><span data-i18n="restartCodex">Also migrate chat history and restart Codex</span></label>
+        <p class="option-hint" data-i18n="restartCodexHint">Leave unchecked to only change the API connection.</p>
         <div class="target-groups">
           <div class="target-group">
             <div class="target-title">
@@ -1302,7 +1308,8 @@ function htmlPage() {
         save: "Save",
         remove: "Remove",
         hint: "Edit a saved relay from the list, change fields, then Save. Leave API key blank to keep the saved local key.",
-        restartCodex: "Migrate chat history and restart Codex after switching",
+        restartCodex: "Also migrate chat history and restart Codex",
+        restartCodexHint: "Leave unchecked to only change the API connection.",
         current: "current",
         edit: "Edit",
         useAccount: "Use Account",
@@ -1350,7 +1357,8 @@ function htmlPage() {
         save: "保存",
         remove: "删除",
         hint: "从列表点编辑后修改并保存。API 密钥留空会继续使用已保存的本地密钥。",
-        restartCodex: "切换后迁移聊天历史并重启 Codex",
+        restartCodex: "同时迁移聊天历史并重启 Codex",
+        restartCodexHint: "不勾选则只修改 API 连接方式。",
         current: "当前",
         edit: "编辑",
         useAccount: "使用账号",
