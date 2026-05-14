@@ -258,15 +258,25 @@ describe("codex-switch", () => {
     assert.equal(setup.status, 0, setup.stderr);
 
     const dbPath = path.join(dir, "state_5.sqlite");
+    const activeRollout = path.join(dir, "active.jsonl");
+    const archivedRollout = path.join(dir, "archived.jsonl");
+    fs.writeFileSync(
+      activeRollout,
+      `${JSON.stringify({ type: "session_meta", payload: { id: "active-account", model_provider: "openai" } })}\n`,
+    );
+    fs.writeFileSync(
+      archivedRollout,
+      `${JSON.stringify({ type: "session_meta", payload: { id: "archived-account", model_provider: "openai" } })}\n`,
+    );
     spawnSync(
       "sqlite3",
       [
         dbPath,
         [
-          "create table threads (id text primary key, archived integer default 0, model text, model_provider text);",
-          "insert into threads (id, archived, model, model_provider) values ('active-account', 0, 'gpt-5.4', 'openai');",
-          "insert into threads (id, archived, model, model_provider) values ('active-relay', 0, 'gpt-5.5', 'vayne');",
-          "insert into threads (id, archived, model, model_provider) values ('archived-account', 1, 'gpt-5.4', 'openai');",
+          "create table threads (id text primary key, archived integer default 0, model text, model_provider text, rollout_path text);",
+          `insert into threads (id, archived, model, model_provider, rollout_path) values ('active-account', 0, 'gpt-5.4', 'openai', '${activeRollout.replace(/'/g, "''")}');`,
+          "insert into threads (id, archived, model, model_provider, rollout_path) values ('active-relay', 0, 'gpt-5.5', 'vayne', '');",
+          `insert into threads (id, archived, model, model_provider, rollout_path) values ('archived-account', 1, 'gpt-5.4', 'openai', '${archivedRollout.replace(/'/g, "''")}');`,
         ].join(" "),
       ],
       { encoding: "utf8" },
@@ -280,6 +290,7 @@ describe("codex-switch", () => {
 
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /Moved 2 thread\(s\) to provider: vayne/);
+    assert.match(result.stdout, /Updated 2 rollout file\(s\)/);
     const rows = spawnSync(
       "sqlite3",
       [dbPath, "select id || '|' || model || '|' || model_provider from threads order by id;"],
@@ -289,7 +300,11 @@ describe("codex-switch", () => {
     assert.match(rows.stdout, /active-account\|gpt-5\.4\|vayne/);
     assert.match(rows.stdout, /active-relay\|gpt-5\.5\|vayne/);
     assert.match(rows.stdout, /archived-account\|gpt-5\.4\|vayne/);
-    assert.equal(fs.readdirSync(dir).filter((name) => name.includes(".bak")).length, 1);
+    assert.equal(JSON.parse(fs.readFileSync(activeRollout, "utf8").split("\n")[0]).payload.model_provider, "vayne");
+    assert.equal(JSON.parse(fs.readFileSync(archivedRollout, "utf8").split("\n")[0]).payload.model_provider, "vayne");
+    assert.equal(fs.readdirSync(dir).filter((name) => name.startsWith("active.jsonl.codex-switch-")).length, 1);
+    assert.equal(fs.readdirSync(dir).filter((name) => name.startsWith("archived.jsonl.codex-switch-")).length, 1);
+    assert.equal(fs.readdirSync(dir).filter((name) => name.startsWith("state_5.sqlite.codex-switch-")).length, 1);
   });
 
   it("lists account and managed relay profiles", () => {
@@ -330,14 +345,19 @@ describe("codex-switch", () => {
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(configPath, 'profile = "vayne"\nmodel = "gpt-5.5"\n');
     const dbPath = path.join(dir, "state_5.sqlite");
+    const activeRollout = path.join(dir, "active-relay.jsonl");
+    fs.writeFileSync(
+      activeRollout,
+      `${JSON.stringify({ type: "session_meta", payload: { id: "active-relay", model_provider: "vayne" } })}\n`,
+    );
     spawnSync(
       "sqlite3",
       [
         dbPath,
         [
-          "create table threads (id text primary key, archived integer default 0, model text, model_provider text);",
-          "insert into threads (id, archived, model, model_provider) values ('active-relay', 0, 'gpt-5.5', 'vayne');",
-          "insert into threads (id, archived, model, model_provider) values ('archived-relay', 1, 'gpt-5.5', 'vayne');",
+          "create table threads (id text primary key, archived integer default 0, model text, model_provider text, rollout_path text);",
+          `insert into threads (id, archived, model, model_provider, rollout_path) values ('active-relay', 0, 'gpt-5.5', 'vayne', '${activeRollout.replace(/'/g, "''")}');`,
+          "insert into threads (id, archived, model, model_provider, rollout_path) values ('archived-relay', 1, 'gpt-5.5', 'vayne', '');",
         ].join(" "),
       ],
       { encoding: "utf8" },
@@ -362,6 +382,7 @@ describe("codex-switch", () => {
     assert.equal(rows.status, 0, rows.stderr);
     assert.match(rows.stdout, /active-relay\|gpt-5\.5\|openai/);
     assert.match(rows.stdout, /archived-relay\|gpt-5\.5\|openai/);
+    assert.equal(JSON.parse(fs.readFileSync(activeRollout, "utf8").split("\n")[0]).payload.model_provider, "openai");
   });
 
   it("updates the latest desktop thread model in the state database", () => {

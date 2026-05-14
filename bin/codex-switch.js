@@ -316,6 +316,7 @@ function defaultCommand(args) {
   console.log(`Set default Codex profile: ${args.name}`);
   if (migration) {
     console.log(`Moved ${migration.changed} thread(s) to provider: ${providerId(args.name)}`);
+    console.log(`Updated ${migration.rolloutChanged} rollout file(s).`);
     console.log(`Backup: ${migration.backupPath}`);
   }
   console.log("Run: codex");
@@ -328,6 +329,7 @@ function accountCommand(args) {
   console.log("Set Codex to use ChatGPT account login.");
   if (migration) {
     console.log(`Moved ${migration.changed} thread(s) to provider: openai`);
+    console.log(`Updated ${migration.rolloutChanged} rollout file(s).`);
     console.log(`Backup: ${migration.backupPath}`);
   }
   console.log("Run: codex");
@@ -399,10 +401,49 @@ function backupStateDb(stateDb) {
   return backupPath;
 }
 
+function backupFile(filePath, stamp) {
+  const backupPath = `${filePath}.codex-switch-${stamp}.bak`;
+  fs.copyFileSync(filePath, backupPath);
+  return backupPath;
+}
+
+function updateRolloutProvider(rolloutPath, provider, stamp) {
+  if (!rolloutPath || !fs.existsSync(rolloutPath)) return false;
+  const content = fs.readFileSync(rolloutPath, "utf8");
+  const newline = content.indexOf("\n");
+  const firstLine = newline === -1 ? content : content.slice(0, newline);
+  if (!firstLine.trim()) return false;
+
+  let entry;
+  try {
+    entry = JSON.parse(firstLine);
+  } catch {
+    return false;
+  }
+
+  if (entry.type !== "session_meta" || !entry.payload || entry.payload.model_provider === provider) {
+    return false;
+  }
+
+  entry.payload.model_provider = provider;
+  backupFile(rolloutPath, stamp);
+  const rest = newline === -1 ? "" : content.slice(newline);
+  fs.writeFileSync(rolloutPath, `${JSON.stringify(entry)}${rest}`, { mode: 0o600 });
+  return true;
+}
+
 function migrateThreads(codexHome, provider) {
   validateName(provider);
   const stateDb = path.join(codexHome, "state_5.sqlite");
   if (!fs.existsSync(stateDb)) return null;
+
+  const rolloutPaths = sqlite(
+    stateDb,
+    `select rollout_path from threads where coalesce(model_provider, '') != ${sqlString(provider)} and coalesce(rollout_path, '') != '';`,
+  )
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 
   const changed = Number(
     sqlite(
@@ -412,7 +453,10 @@ function migrateThreads(codexHome, provider) {
   );
   if (!changed) return null;
 
-  const backupPath = backupStateDb(stateDb);
+  const stamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
+  const backupPath = `${stateDb}.codex-switch-${stamp}.bak`;
+  fs.copyFileSync(stateDb, backupPath);
+  const rolloutChanged = rolloutPaths.filter((rolloutPath) => updateRolloutProvider(rolloutPath, provider, stamp)).length;
   sqlite(
     stateDb,
     [
@@ -421,7 +465,7 @@ function migrateThreads(codexHome, provider) {
       `where coalesce(model_provider, '') != ${sqlString(provider)};`,
     ].join(" "),
   );
-  return { changed, backupPath };
+  return { changed, backupPath, rolloutChanged };
 }
 
 function threadModelCommand(args) {
@@ -1615,7 +1659,7 @@ function startWeb(args) {
           details: [
             `Config: ${path.join(codexHome, "config.toml")}`,
             migration
-              ? `Moved ${migration.changed} thread(s) to provider '${providerId(payload.name)}'. Backup: ${migration.backupPath}`
+              ? `Moved ${migration.changed} thread(s) and updated ${migration.rolloutChanged} rollout file(s) to provider '${providerId(payload.name)}'. Backup: ${migration.backupPath}`
               : "Threads already use this provider.",
             "Run: codex",
           ],
@@ -1632,7 +1676,7 @@ function startWeb(args) {
           details: [
             `Config: ${path.join(codexHome, "config.toml")}`,
             migration
-              ? `Moved ${migration.changed} thread(s) to provider 'openai'. Backup: ${migration.backupPath}`
+              ? `Moved ${migration.changed} thread(s) and updated ${migration.rolloutChanged} rollout file(s) to provider 'openai'. Backup: ${migration.backupPath}`
               : "Threads already use the account provider.",
             "Run: codex",
           ],
