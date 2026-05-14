@@ -40,6 +40,7 @@ Options:
   --port <port>            Web server port, default 8787
   --no-open                Do not open the web UI in a browser
   --no-migrate-history     Do not move Codex threads to the selected provider
+  --restart-codex          Restart the macOS Codex app after switching
   --force                  Overwrite an existing key file without prompting
 
 Security:
@@ -59,7 +60,7 @@ function parseArgs(argv) {
     }
 
     const key = item.slice(2).replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-    if (key === "force" || key === "deleteKey" || key === "noOpen" || key === "noMigrateHistory") {
+    if (key === "force" || key === "deleteKey" || key === "noOpen" || key === "noMigrateHistory" || key === "restartCodex") {
       args[key] = true;
       continue;
     }
@@ -320,6 +321,10 @@ function defaultCommand(args) {
     if (migration.repairedRolloutPaths) console.log(`Repaired ${migration.repairedRolloutPaths} rollout path(s).`);
     console.log(`Backup: ${migration.backupPath}`);
   }
+  if (args.restartCodex) {
+    restartCodexApp();
+    console.log("Restarted Codex app.");
+  }
   console.log("Run: codex");
 }
 
@@ -333,6 +338,10 @@ function accountCommand(args) {
     console.log(`Updated ${migration.rolloutChanged} rollout file(s).`);
     if (migration.repairedRolloutPaths) console.log(`Repaired ${migration.repairedRolloutPaths} rollout path(s).`);
     console.log(`Backup: ${migration.backupPath}`);
+  }
+  if (args.restartCodex) {
+    restartCodexApp();
+    console.log("Restarted Codex app.");
   }
   console.log("Run: codex");
 }
@@ -571,6 +580,14 @@ function clearDefaultProfile(codexHome) {
     .replace(/^profile\s*=.*\n?/m, "")
     .replace(/\n{3,}/g, "\n\n");
   fs.writeFileSync(configPath, config, { mode: 0o600 });
+}
+
+function restartCodexApp() {
+  if (process.platform !== "darwin") {
+    throw new Error("Automatic Codex app restart is only supported on macOS.");
+  }
+  execFileSync("osascript", ["-e", 'tell application "Codex" to quit']);
+  execFileSync("open", ["-a", "Codex"]);
 }
 
 function currentDefaultProfile(codexHome) {
@@ -907,6 +924,21 @@ function htmlPage() {
       margin: 12px 0 0;
       color: var(--muted);
     }
+    .option-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-top: 12px;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .option-row input {
+      width: 16px;
+      min-height: 16px;
+      height: 16px;
+      margin: 0;
+      accent-color: var(--accent);
+    }
     .section-header {
       display: flex;
       align-items: center;
@@ -1195,6 +1227,7 @@ function htmlPage() {
               <button type="button" class="danger" id="remove" data-i18n="remove">Remove</button>
             </div>
             <p class="hint" data-i18n="hint">Edit a saved relay from the list, change fields, then Save. Leave API key blank to keep the saved local key.</p>
+            <label class="option-row"><input id="restartCodex" name="restartCodex" type="checkbox"><span data-i18n="restartCodex">Restart Codex after switching</span></label>
             <div class="message" id="message"></div>
           </form>
         </div>
@@ -1269,6 +1302,7 @@ function htmlPage() {
         save: "Save",
         remove: "Remove",
         hint: "Edit a saved relay from the list, change fields, then Save. Leave API key blank to keep the saved local key.",
+        restartCodex: "Restart Codex after switching",
         current: "current",
         edit: "Edit",
         useAccount: "Use Account",
@@ -1316,6 +1350,7 @@ function htmlPage() {
         save: "保存",
         remove: "删除",
         hint: "从列表点编辑后修改并保存。API 密钥留空会继续使用已保存的本地密钥。",
+        restartCodex: "切换后重启 Codex",
         current: "当前",
         edit: "编辑",
         useAccount: "使用账号",
@@ -1364,6 +1399,7 @@ function htmlPage() {
     function values() {
       const data = Object.fromEntries(new FormData(form).entries());
       data.useEnv = false;
+      data.restartCodex = document.querySelector("#restartCodex").checked;
       return data;
     }
 
@@ -1631,6 +1667,7 @@ function normalizeWebPayload(body) {
     model: String(body.model || "").trim(),
     keyEnv: body.useEnv ? String(body.keyEnv || "").trim() : undefined,
     secret: body.useEnv ? undefined : String(body.apiKey || "").trim(),
+    restartCodex: Boolean(body.restartCodex),
   };
 }
 
@@ -1700,8 +1737,11 @@ function startWeb(args) {
         const payload = normalizeWebPayload(await readJson(req));
         setDefaultProfile(payload.name, codexHome);
         const migration = migrateThreads(codexHome, providerId(payload.name));
+        if (payload.restartCodex) restartCodexApp();
         sendJson(res, 200, {
-          message: `Switched Codex to relay profile '${payload.name}'.`,
+          message: payload.restartCodex
+            ? `Switched Codex to relay profile '${payload.name}' and restarted the app.`
+            : `Switched Codex to relay profile '${payload.name}'.`,
           details: [
             `Config: ${path.join(codexHome, "config.toml")}`,
             migration
@@ -1714,11 +1754,14 @@ function startWeb(args) {
       }
 
       if (req.method === "POST" && url.pathname === "/api/account") {
-        await readJson(req);
+        const payload = normalizeWebPayload(await readJson(req));
         clearDefaultProfile(codexHome);
         const migration = migrateThreads(codexHome, "openai");
+        if (payload.restartCodex) restartCodexApp();
         sendJson(res, 200, {
-          message: "Switched Codex to ChatGPT account login.",
+          message: payload.restartCodex
+            ? "Switched Codex to ChatGPT account login and restarted the app."
+            : "Switched Codex to ChatGPT account login.",
           details: [
             `Config: ${path.join(codexHome, "config.toml")}`,
             migration
