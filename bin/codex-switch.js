@@ -317,6 +317,7 @@ function defaultCommand(args) {
   if (migration) {
     console.log(`Moved ${migration.changed} thread(s) to provider: ${providerId(args.name)}`);
     console.log(`Updated ${migration.rolloutChanged} rollout file(s).`);
+    if (migration.repairedRolloutPaths) console.log(`Repaired ${migration.repairedRolloutPaths} rollout path(s).`);
     console.log(`Backup: ${migration.backupPath}`);
   }
   console.log("Run: codex");
@@ -330,6 +331,7 @@ function accountCommand(args) {
   if (migration) {
     console.log(`Moved ${migration.changed} thread(s) to provider: openai`);
     console.log(`Updated ${migration.rolloutChanged} rollout file(s).`);
+    if (migration.repairedRolloutPaths) console.log(`Repaired ${migration.repairedRolloutPaths} rollout path(s).`);
     console.log(`Backup: ${migration.backupPath}`);
   }
   console.log("Run: codex");
@@ -432,18 +434,42 @@ function updateRolloutProvider(rolloutPath, provider, stamp) {
   return true;
 }
 
+function originalRolloutPath(rolloutPath) {
+  const marker = ".codex-switch-";
+  const markerIndex = rolloutPath.indexOf(marker);
+  if (markerIndex === -1 || !rolloutPath.endsWith(".bak")) return "";
+  return rolloutPath.slice(0, markerIndex);
+}
+
+function repairRolloutPath(rolloutPath, stamp) {
+  const originalPath = originalRolloutPath(rolloutPath);
+  if (!originalPath || !fs.existsSync(rolloutPath) || fs.existsSync(originalPath)) return "";
+
+  fs.mkdirSync(path.dirname(originalPath), { recursive: true, mode: 0o700 });
+  fs.copyFileSync(rolloutPath, originalPath);
+  fs.chmodSync(originalPath, 0o600);
+
+  const repairBackupPath = `${rolloutPath}.codex-switch-repair-${stamp}.bak`;
+  fs.copyFileSync(rolloutPath, repairBackupPath);
+  return originalPath;
+}
+
 function migrateThreads(codexHome, provider) {
   validateName(provider);
   const stateDb = path.join(codexHome, "state_5.sqlite");
   if (!fs.existsSync(stateDb)) return null;
 
-  const rolloutPaths = sqlite(
+  const rolloutRows = sqlite(
     stateDb,
-    `select rollout_path from threads where coalesce(model_provider, '') != ${sqlString(provider)} and coalesce(rollout_path, '') != '';`,
+    "select id || char(9) || rollout_path from threads where coalesce(rollout_path, '') != '';",
   )
     .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
+    .map((line) => {
+      const tab = line.indexOf("\t");
+      if (tab === -1) return null;
+      return { id: line.slice(0, tab), rolloutPath: line.slice(tab + 1).trim() };
+    })
+    .filter((row) => row && row.rolloutPath);
 
   const changed = Number(
     sqlite(
@@ -451,12 +477,32 @@ function migrateThreads(codexHome, provider) {
       `select count(*) from threads where coalesce(model_provider, '') != ${sqlString(provider)};`,
     ),
   );
-  if (!changed) return null;
 
   const stamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
+  const repairs = [];
+  for (const row of rolloutRows) {
+    const repairedPath = repairRolloutPath(row.rolloutPath, stamp);
+    if (repairedPath) {
+      repairs.push({ id: row.id, from: row.rolloutPath, to: repairedPath });
+      row.rolloutPath = repairedPath;
+    }
+  }
+  const rolloutChanged = rolloutRows.filter((row) => updateRolloutProvider(row.rolloutPath, provider, stamp)).length;
+
+  if (!changed && !rolloutChanged && repairs.length === 0) return null;
+
   const backupPath = `${stateDb}.codex-switch-${stamp}.bak`;
   fs.copyFileSync(stateDb, backupPath);
-  const rolloutChanged = rolloutPaths.filter((rolloutPath) => updateRolloutProvider(rolloutPath, provider, stamp)).length;
+  for (const repair of repairs) {
+    sqlite(
+      stateDb,
+      [
+        "update threads",
+        `set rollout_path = ${sqlString(repair.to)}`,
+        `where id = ${sqlString(repair.id)} and rollout_path = ${sqlString(repair.from)};`,
+      ].join(" "),
+    );
+  }
   sqlite(
     stateDb,
     [
@@ -465,7 +511,7 @@ function migrateThreads(codexHome, provider) {
       `where coalesce(model_provider, '') != ${sqlString(provider)};`,
     ].join(" "),
   );
-  return { changed, backupPath, rolloutChanged };
+  return { changed, backupPath, rolloutChanged, repairedRolloutPaths: repairs.length };
 }
 
 function threadModelCommand(args) {
@@ -1659,7 +1705,7 @@ function startWeb(args) {
           details: [
             `Config: ${path.join(codexHome, "config.toml")}`,
             migration
-              ? `Moved ${migration.changed} thread(s) and updated ${migration.rolloutChanged} rollout file(s) to provider '${providerId(payload.name)}'. Backup: ${migration.backupPath}`
+              ? `Moved ${migration.changed} thread(s), updated ${migration.rolloutChanged} rollout file(s), and repaired ${migration.repairedRolloutPaths} rollout path(s) to provider '${providerId(payload.name)}'. Backup: ${migration.backupPath}`
               : "Threads already use this provider.",
             "Run: codex",
           ],
@@ -1676,7 +1722,7 @@ function startWeb(args) {
           details: [
             `Config: ${path.join(codexHome, "config.toml")}`,
             migration
-              ? `Moved ${migration.changed} thread(s) and updated ${migration.rolloutChanged} rollout file(s) to provider 'openai'. Backup: ${migration.backupPath}`
+              ? `Moved ${migration.changed} thread(s), updated ${migration.rolloutChanged} rollout file(s), and repaired ${migration.repairedRolloutPaths} rollout path(s) to provider 'openai'. Backup: ${migration.backupPath}`
               : "Threads already use the account provider.",
             "Run: codex",
           ],

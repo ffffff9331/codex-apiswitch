@@ -307,6 +307,110 @@ describe("codex-switch", () => {
     assert.equal(fs.readdirSync(dir).filter((name) => name.startsWith("state_5.sqlite.codex-switch-")).length, 1);
   });
 
+  it("repairs stale rollout metadata even when database threads already use the provider", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-switch-"));
+    const setup = spawnSync(
+      process.execPath,
+      [
+        bin,
+        "setup",
+        "--codex-home",
+        dir,
+        "--name",
+        "vayne",
+        "--base-url",
+        "https://api.vayne.cc.cd/v1",
+        "--model",
+        "gpt-5.5",
+      ],
+      { input: "sk-one\n", encoding: "utf8" },
+    );
+    assert.equal(setup.status, 0, setup.stderr);
+
+    const dbPath = path.join(dir, "state_5.sqlite");
+    const rollout = path.join(dir, "stale.jsonl");
+    fs.writeFileSync(
+      rollout,
+      `${JSON.stringify({ type: "session_meta", payload: { id: "stale", model_provider: "openai" } })}\n`,
+    );
+    spawnSync(
+      "sqlite3",
+      [
+        dbPath,
+        [
+          "create table threads (id text primary key, archived integer default 0, model text, model_provider text, rollout_path text);",
+          `insert into threads (id, archived, model, model_provider, rollout_path) values ('stale', 0, 'gpt-5.5', 'vayne', '${rollout.replace(/'/g, "''")}');`,
+        ].join(" "),
+      ],
+      { encoding: "utf8" },
+    );
+
+    const result = spawnSync(process.execPath, [bin, "default", "--codex-home", dir, "--name", "vayne"], {
+      encoding: "utf8",
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Moved 0 thread\(s\) to provider: vayne/);
+    assert.match(result.stdout, /Updated 1 rollout file\(s\)/);
+    assert.equal(JSON.parse(fs.readFileSync(rollout, "utf8").split("\n")[0]).payload.model_provider, "vayne");
+  });
+
+  it("restores rollout paths that accidentally point at codex-switch backup files", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-switch-"));
+    const setup = spawnSync(
+      process.execPath,
+      [
+        bin,
+        "setup",
+        "--codex-home",
+        dir,
+        "--name",
+        "vayne",
+        "--base-url",
+        "https://api.vayne.cc.cd/v1",
+        "--model",
+        "gpt-5.5",
+      ],
+      { input: "sk-one\n", encoding: "utf8" },
+    );
+    assert.equal(setup.status, 0, setup.stderr);
+
+    const dbPath = path.join(dir, "state_5.sqlite");
+    const rollout = path.join(dir, "restored.jsonl");
+    const backupRollout = `${rollout}.codex-switch-20260514012055.bak`;
+    fs.writeFileSync(
+      backupRollout,
+      `${JSON.stringify({ type: "session_meta", payload: { id: "restored", model_provider: "openai" } })}\n`,
+    );
+    spawnSync(
+      "sqlite3",
+      [
+        dbPath,
+        [
+          "create table threads (id text primary key, archived integer default 0, model text, model_provider text, rollout_path text);",
+          `insert into threads (id, archived, model, model_provider, rollout_path) values ('restored', 0, 'gpt-5.5', 'openai', '${backupRollout.replace(/'/g, "''")}');`,
+        ].join(" "),
+      ],
+      { encoding: "utf8" },
+    );
+
+    const result = spawnSync(process.execPath, [bin, "default", "--codex-home", dir, "--name", "vayne"], {
+      encoding: "utf8",
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Moved 1 thread\(s\) to provider: vayne/);
+    assert.match(result.stdout, /Updated 1 rollout file\(s\)/);
+    assert.match(result.stdout, /Repaired 1 rollout path\(s\)/);
+    assert.equal(fs.existsSync(rollout), true);
+    assert.equal(JSON.parse(fs.readFileSync(rollout, "utf8").split("\n")[0]).payload.model_provider, "vayne");
+    const rows = spawnSync("sqlite3", [dbPath, "select model_provider || '|' || rollout_path from threads where id = 'restored';"], {
+      encoding: "utf8",
+    });
+    assert.equal(rows.status, 0, rows.stderr);
+    assert.equal(rows.stdout.trim(), `vayne|${rollout}`);
+  });
+
   it("lists account and managed relay profiles", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-switch-"));
     const setup = spawnSync(
