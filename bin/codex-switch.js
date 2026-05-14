@@ -1227,7 +1227,6 @@ function htmlPage() {
               <button type="button" class="danger" id="remove" data-i18n="remove">Remove</button>
             </div>
             <p class="hint" data-i18n="hint">Edit a saved relay from the list, change fields, then Save. Leave API key blank to keep the saved local key.</p>
-            <label class="option-row"><input id="restartCodex" name="restartCodex" type="checkbox"><span data-i18n="restartCodex">Restart Codex after switching</span></label>
             <div class="message" id="message"></div>
           </form>
         </div>
@@ -1238,6 +1237,7 @@ function htmlPage() {
           </div>
           <a class="promo-link" href="https://vayne.cc.cd/" target="_blank" rel="noopener noreferrer" data-i18n="promoAction">View</a>
         </div>
+        <label class="option-row"><input id="restartCodex" name="restartCodex" type="checkbox"><span data-i18n="restartCodex">Restart Codex after switching</span></label>
         <div class="target-groups">
           <div class="target-group">
             <div class="target-title">
@@ -1302,7 +1302,7 @@ function htmlPage() {
         save: "Save",
         remove: "Remove",
         hint: "Edit a saved relay from the list, change fields, then Save. Leave API key blank to keep the saved local key.",
-        restartCodex: "Restart Codex after switching",
+        restartCodex: "Migrate chat history and restart Codex after switching",
         current: "current",
         edit: "Edit",
         useAccount: "Use Account",
@@ -1350,7 +1350,7 @@ function htmlPage() {
         save: "保存",
         remove: "删除",
         hint: "从列表点编辑后修改并保存。API 密钥留空会继续使用已保存的本地密钥。",
-        restartCodex: "切换后重启 Codex",
+        restartCodex: "切换后迁移聊天历史并重启 Codex",
         current: "当前",
         edit: "编辑",
         useAccount: "使用账号",
