@@ -1532,14 +1532,26 @@ function htmlPage() {
         button.addEventListener("click", async () => {
           const item = button.closest(".profile-item");
           const profile = profiles.find((entry) => entry.name === item.dataset.name);
-          if (profile.type !== "account") loadProfile(profile);
+          if (button.dataset.action === "load") {
+            loadProfile(profile);
+            return;
+          }
           if (button.dataset.action === "test") {
-            document.querySelector("#test").click();
+            setMessage(t("testing"));
+            try {
+              const payload = await post("/api/test", { name: profile.name });
+              setMessage(payload.message);
+            } catch (error) {
+              setMessage(error.message, true);
+            }
           }
           if (button.dataset.action === "default" || button.dataset.action === "account") {
             setMessage(t("switching"));
             try {
-              const payload = await post(button.dataset.action === "account" ? "/api/account" : "/api/default", values());
+              const payload = await post(button.dataset.action === "account" ? "/api/account" : "/api/default", {
+                name: profile.name,
+                restartCodex: document.querySelector("#restartCodex").checked,
+              });
               setMessage(payload.message);
               await loadProfiles();
             } catch (error) {
@@ -1547,7 +1559,14 @@ function htmlPage() {
             }
           }
           if (button.dataset.action === "remove") {
-            document.querySelector("#remove").click();
+            setMessage(t("removing"));
+            try {
+              const payload = await post("/api/remove", { name: profile.name });
+              setMessage(payload.message);
+              await loadProfiles();
+            } catch (error) {
+              setMessage(error.message, true);
+            }
           }
         });
       });
