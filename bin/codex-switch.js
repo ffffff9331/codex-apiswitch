@@ -429,11 +429,100 @@ function backupFile(filePath, stamp) {
   return backupPath;
 }
 
+function readRolloutFirstLine(rolloutPath) {
+  const fd = fs.openSync(rolloutPath, "r");
+  const chunks = [];
+  const chunkSize = 64 * 1024;
+  const maxLineBytes = 1024 * 1024;
+  const buffer = Buffer.allocUnsafe(chunkSize);
+  let position = 0;
+  let total = 0;
+
+  try {
+    while (true) {
+      const bytesRead = fs.readSync(fd, buffer, 0, chunkSize, position);
+      if (!bytesRead) {
+        return {
+          line: Buffer.concat(chunks, total).toString("utf8"),
+          lineBytes: total,
+          restOffset: position,
+          hasNewline: false,
+        };
+      }
+
+      const newlineIndex = buffer.subarray(0, bytesRead).indexOf(0x0a);
+      if (newlineIndex !== -1 && newlineIndex < bytesRead) {
+        chunks.push(Buffer.from(buffer.subarray(0, newlineIndex)));
+        total += newlineIndex;
+        return {
+          line: Buffer.concat(chunks, total).toString("utf8"),
+          lineBytes: total,
+          restOffset: position + newlineIndex + 1,
+          hasNewline: true,
+        };
+      }
+
+      chunks.push(Buffer.from(buffer.subarray(0, bytesRead)));
+      total += bytesRead;
+      if (total > maxLineBytes) return null;
+      position += bytesRead;
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function rewriteRolloutFirstLine(rolloutPath, firstLine, info, stamp) {
+  const firstLineBuffer = Buffer.from(firstLine, "utf8");
+  if (info.hasNewline && firstLineBuffer.length <= info.lineBytes) {
+    const fd = fs.openSync(rolloutPath, "r+");
+    try {
+      fs.writeSync(fd, firstLineBuffer, 0, firstLineBuffer.length, 0);
+      if (firstLineBuffer.length < info.lineBytes) {
+        fs.writeSync(fd, Buffer.alloc(info.lineBytes - firstLineBuffer.length, 0x20), 0, info.lineBytes - firstLineBuffer.length, firstLineBuffer.length);
+      }
+    } finally {
+      fs.closeSync(fd);
+    }
+    return;
+  }
+
+  const tempPath = `${rolloutPath}.codex-switch-${stamp}.${process.pid}.tmp`;
+  const inFd = fs.openSync(rolloutPath, "r");
+  const outFd = fs.openSync(tempPath, "wx", 0o600);
+  const buffer = Buffer.allocUnsafe(1024 * 1024);
+  let position = info.restOffset;
+
+  try {
+    fs.writeSync(outFd, firstLineBuffer);
+    if (info.hasNewline) fs.writeSync(outFd, "\n");
+
+    while (true) {
+      const bytesRead = fs.readSync(inFd, buffer, 0, buffer.length, position);
+      if (!bytesRead) break;
+      fs.writeSync(outFd, buffer, 0, bytesRead);
+      position += bytesRead;
+    }
+  } catch (error) {
+    try {
+      fs.unlinkSync(tempPath);
+    } catch (_) {
+      // Best effort cleanup.
+    }
+    throw error;
+  } finally {
+    fs.closeSync(inFd);
+    fs.closeSync(outFd);
+  }
+
+  fs.renameSync(tempPath, rolloutPath);
+}
+
 function updateRolloutProvider(rolloutPath, provider, stamp) {
   if (!rolloutPath || !fs.existsSync(rolloutPath)) return false;
-  const content = fs.readFileSync(rolloutPath, "utf8");
-  const newline = content.indexOf("\n");
-  const firstLine = newline === -1 ? content : content.slice(0, newline);
+  const info = readRolloutFirstLine(rolloutPath);
+  if (!info) return false;
+  const firstLine = info.line;
   if (!firstLine.trim()) return false;
 
   let entry;
@@ -449,8 +538,7 @@ function updateRolloutProvider(rolloutPath, provider, stamp) {
 
   entry.payload.model_provider = provider;
   backupFile(rolloutPath, stamp);
-  const rest = newline === -1 ? "" : content.slice(newline);
-  fs.writeFileSync(rolloutPath, `${JSON.stringify(entry)}${rest}`, { mode: 0o600 });
+  rewriteRolloutFirstLine(rolloutPath, JSON.stringify(entry), info, stamp);
   return true;
 }
 

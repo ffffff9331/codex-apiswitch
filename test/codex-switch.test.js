@@ -383,6 +383,70 @@ describe("codex-switch", () => {
     assert.equal(JSON.parse(fs.readFileSync(rollout, "utf8").split("\n")[0]).payload.model_provider, "vayne");
   });
 
+  it("updates rollout metadata without reading the whole rollout into memory", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-switch-"));
+    const setup = spawnSync(
+      process.execPath,
+      [
+        bin,
+        "setup",
+        "--codex-home",
+        dir,
+        "--name",
+        "vayne",
+        "--base-url",
+        "https://api.vayne.cc.cd/v1",
+        "--model",
+        "gpt-5.5",
+      ],
+      { input: "sk-one\n", encoding: "utf8" },
+    );
+    assert.equal(setup.status, 0, setup.stderr);
+
+    const dbPath = path.join(dir, "state_5.sqlite");
+    const rollout = path.join(dir, "large-rollout.jsonl");
+    const firstLine = JSON.stringify({ type: "session_meta", payload: { id: "large-rollout", model_provider: "openai" } });
+    const tailMarker = "\n" + JSON.stringify({ type: "response", payload: { text: "tail-marker" } }) + "\n";
+    fs.writeFileSync(rollout, `${firstLine}\n`, { encoding: "utf8" });
+    const fd = fs.openSync(rollout, "a");
+    try {
+      const chunk = Buffer.alloc(1024 * 1024, "x");
+      for (let index = 0; index < 6; index += 1) {
+        fs.writeSync(fd, chunk);
+      }
+      fs.writeSync(fd, tailMarker);
+    } finally {
+      fs.closeSync(fd);
+    }
+    const sizeBefore = fs.statSync(rollout).size;
+    spawnSync(
+      "sqlite3",
+      [
+        dbPath,
+        [
+          "create table threads (id text primary key, archived integer default 0, model text, model_provider text, rollout_path text);",
+          `insert into threads (id, archived, model, model_provider, rollout_path) values ('large-rollout', 0, 'gpt-5.4', 'openai', '${rollout.replace(/'/g, "''")}');`,
+        ].join(" "),
+      ],
+      { encoding: "utf8" },
+    );
+
+    const result = spawnSync(process.execPath, [bin, "default", "--codex-home", dir, "--name", "vayne"], {
+      encoding: "utf8",
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Updated 1 rollout file\(s\)/);
+    const fdRead = fs.openSync(rollout, "r");
+    const buffer = Buffer.alloc(512);
+    const bytesRead = fs.readSync(fdRead, buffer, 0, buffer.length, 0);
+    fs.closeSync(fdRead);
+    const updatedFirstLine = buffer.subarray(0, bytesRead).toString("utf8").split("\n")[0];
+    assert.equal(JSON.parse(updatedFirstLine).payload.model_provider, "vayne");
+    assert.equal(fs.statSync(rollout).size, sizeBefore);
+    assert.equal(fs.readFileSync(rollout, "utf8").endsWith(tailMarker), true);
+  });
+
   it("restores rollout paths that accidentally point at codex-switch backup files", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-switch-"));
     const setup = spawnSync(
