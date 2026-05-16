@@ -1,11 +1,39 @@
 const assert = require("node:assert/strict");
 const { describe, it } = require("node:test");
-const { spawnSync } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
 const bin = path.join(__dirname, "..", "bin", "codex-switch.js");
+
+function waitForWebUrl(child) {
+  return new Promise((resolve, reject) => {
+    let output = "";
+    const timer = setTimeout(() => reject(new Error(`Timed out waiting for web server. Output: ${output}`)), 5000);
+    child.stdout.on("data", (chunk) => {
+      output += chunk.toString();
+      const match = output.match(/Codex Switch web UI: (http:\/\/127\.0\.0\.1:\d+)/);
+      if (match) {
+        clearTimeout(timer);
+        resolve(match[1]);
+      }
+    });
+    child.stderr.on("data", (chunk) => {
+      output += chunk.toString();
+    });
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("exit", (code) => {
+      if (code !== null && code !== 0) {
+        clearTimeout(timer);
+        reject(new Error(`Web server exited with code ${code}. Output: ${output}`));
+      }
+    });
+  });
+}
 
 describe("codex-switch", () => {
   it("writes a managed profile without committing the key to config.toml", () => {
@@ -489,6 +517,71 @@ describe("codex-switch", () => {
     });
     assert.equal(rows.status, 0, rows.stderr);
     assert.equal(rows.stdout.trim(), "openai");
+  });
+
+  it("web switching migrates chat history even when restart is not requested", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-switch-"));
+    const setup = spawnSync(
+      process.execPath,
+      [
+        bin,
+        "setup",
+        "--codex-home",
+        dir,
+        "--name",
+        "vayne",
+        "--base-url",
+        "https://api.vayne.cc.cd/v1",
+        "--model",
+        "gpt-5.5",
+      ],
+      { input: "sk-one\n", encoding: "utf8" },
+    );
+    assert.equal(setup.status, 0, setup.stderr);
+
+    const dbPath = path.join(dir, "state_5.sqlite");
+    const rollout = path.join(dir, "web-active.jsonl");
+    fs.writeFileSync(
+      rollout,
+      `${JSON.stringify({ type: "session_meta", payload: { id: "web-active", model_provider: "openai" } })}\n`,
+    );
+    spawnSync(
+      "sqlite3",
+      [
+        dbPath,
+        [
+          "create table threads (id text primary key, archived integer default 0, model text, model_provider text, rollout_path text);",
+          `insert into threads (id, archived, model, model_provider, rollout_path) values ('web-active', 0, 'gpt-5.4', 'openai', '${rollout.replace(/'/g, "''")}');`,
+        ].join(" "),
+      ],
+      { encoding: "utf8" },
+    );
+
+    const server = spawn(process.execPath, [bin, "web", "--codex-home", dir, "--host", "127.0.0.1", "--port", "0", "--no-open"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    try {
+      const baseUrl = await waitForWebUrl(server);
+      const response = await fetch(`${baseUrl}/api/default`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "vayne", restartCodex: false }),
+      });
+      const payload = await response.json();
+
+      assert.equal(response.status, 200, JSON.stringify(payload));
+      assert.match(payload.details.join("\n"), /Moved 1 thread\(s\)/);
+      const rows = spawnSync("sqlite3", [dbPath, "select model_provider from threads where id = 'web-active';"], {
+        encoding: "utf8",
+      });
+      assert.equal(rows.status, 0, rows.stderr);
+      assert.equal(rows.stdout.trim(), "vayne");
+      assert.equal(JSON.parse(fs.readFileSync(rollout, "utf8").split("\n")[0]).payload.model_provider, "vayne");
+    } finally {
+      server.kill();
+    }
   });
 
   it("switches back to account login by clearing the profile key", () => {

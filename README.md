@@ -92,9 +92,9 @@ For an existing profile, click `Edit` in the profile list, change the fields, th
 
 When switching in the web UI:
 
-- Leave `Also migrate chat history and restart Codex` unchecked to only change the active API connection.
-- Check it to migrate local Codex chat history to the selected provider and restart the macOS Codex app so history is reloaded.
-- Experimental: leaving it unchecked may help preserve account-linked workspace behavior, such as rollback controls, because codex-switch does not rewrite local thread provider metadata.
+- codex-switch always migrates local Codex chat history to the selected provider.
+- Check `Restart Codex after switching` if you also want to restart the macOS Codex app so history is reloaded immediately.
+- Leave it unchecked if you want to restart Codex yourself.
 
 Note: history migration keeps local Codex conversations visible across account and relay modes. It does not turn relay mode into a fully account-linked workspace. Codex features that depend on your logged-in account and its bound Git repository, such as account-linked rollback buttons, may still require switching back to account login.
 
@@ -295,15 +295,15 @@ Web 页面可以完成这些操作：
 切换时页面上有一个选项：
 
 ```text
-同时迁移聊天历史并重启 Codex
-不勾选则只修改 API 连接方式。
+切换后重启 Codex
+聊天历史会自动迁移。勾选后会额外重启 Codex。
 ```
 
 含义是：
 
-- 不勾选：只切换 Codex 当前使用账号登录还是中转站，不迁移历史，不重启 Codex。
-- 勾选：先把本地 Codex 历史会话迁移到目标 provider，再重启 macOS Codex App，让历史重新加载。
-- 实验思路：不勾选时不会重写本地线程 provider 元数据，可能更有利于保留账号绑定工作区能力，例如代码回退按钮。
+- 点 `使用中转` 或 `使用账号` 时，都会自动迁移本地 Codex 历史会话到目标 provider。
+- 不勾选：只迁移历史并切换配置，不自动重启 Codex。
+- 勾选：迁移历史、切换配置，并重启 macOS Codex App，让历史重新加载。
 
 注意：历史迁移的目标是让本地 Codex 对话在账号模式和中转站模式之间保持可见。它不会把中转站模式变成完整的账号绑定工作区。依赖账号登录和账号绑定 Git 代码库的功能，例如账号侧的代码回退按钮，可能仍然需要切回账号登录后才能正常使用。
 

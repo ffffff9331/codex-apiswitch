@@ -1253,8 +1253,8 @@ function htmlPage() {
           </div>
           <a class="promo-link" href="https://vayne.cc.cd/" target="_blank" rel="noopener noreferrer" data-i18n="promoAction">View</a>
         </div>
-        <label class="option-row"><input id="restartCodex" name="restartCodex" type="checkbox"><span data-i18n="restartCodex">Also migrate chat history and restart Codex</span></label>
-        <p class="option-hint" data-i18n="restartCodexHint">Leave unchecked to only change the API connection.</p>
+        <label class="option-row"><input id="restartCodex" name="restartCodex" type="checkbox"><span data-i18n="restartCodex">Restart Codex after switching</span></label>
+        <p class="option-hint" data-i18n="restartCodexHint">Chat history is migrated automatically. Check this to also restart Codex.</p>
         <div class="target-groups">
           <div class="target-group">
             <div class="target-title">
@@ -1319,8 +1319,8 @@ function htmlPage() {
         save: "Save",
         remove: "Remove",
         hint: "Edit a saved relay from the list, change fields, then Save. Leave API key blank to keep the saved local key.",
-        restartCodex: "Also migrate chat history and restart Codex",
-        restartCodexHint: "Leave unchecked to only change the API connection. Account-linked repo rollback may still require account login.",
+        restartCodex: "Restart Codex after switching",
+        restartCodexHint: "Chat history is migrated automatically. Check this to also restart Codex. Account-linked repo rollback may still require account login.",
         current: "current",
         edit: "Edit",
         useAccount: "Use Account",
@@ -1368,8 +1368,8 @@ function htmlPage() {
         save: "保存",
         remove: "删除",
         hint: "从列表点编辑后修改并保存。API 密钥留空会继续使用已保存的本地密钥。",
-        restartCodex: "同时迁移聊天历史并重启 Codex",
-        restartCodexHint: "不勾选则只修改 API 连接方式。账号绑定代码库的回退功能可能仍需账号登录。",
+        restartCodex: "切换后重启 Codex",
+        restartCodexHint: "聊天历史会自动迁移。勾选后会额外重启 Codex。账号绑定代码库的回退功能可能仍需账号登录。",
         current: "当前",
         edit: "编辑",
         useAccount: "使用账号",
@@ -1774,7 +1774,7 @@ function startWeb(args) {
       if (req.method === "POST" && url.pathname === "/api/default") {
         const payload = normalizeWebPayload(await readJson(req));
         setDefaultProfile(payload.name, codexHome);
-        const migration = payload.restartCodex ? migrateThreads(codexHome, providerId(payload.name)) : null;
+        const migration = migrateThreads(codexHome, providerId(payload.name));
         if (payload.restartCodex) restartCodexApp();
         sendJson(res, 200, {
           message: payload.restartCodex
@@ -1784,7 +1784,7 @@ function startWeb(args) {
             `Config: ${path.join(codexHome, "config.toml")}`,
             migration
               ? `Moved ${migration.changed} thread(s), updated ${migration.rolloutChanged} rollout file(s), and repaired ${migration.repairedRolloutPaths} rollout path(s) to provider '${providerId(payload.name)}'. Backup: ${migration.backupPath}`
-              : payload.restartCodex ? "Threads already use this provider." : "Only changed the active API connection.",
+              : "Threads already use this provider.",
             "Run: codex",
           ],
         });
@@ -1794,7 +1794,7 @@ function startWeb(args) {
       if (req.method === "POST" && url.pathname === "/api/account") {
         const payload = normalizeWebPayload(await readJson(req));
         clearDefaultProfile(codexHome);
-        const migration = payload.restartCodex ? migrateThreads(codexHome, "openai") : null;
+        const migration = migrateThreads(codexHome, "openai");
         if (payload.restartCodex) restartCodexApp();
         sendJson(res, 200, {
           message: payload.restartCodex
@@ -1804,7 +1804,7 @@ function startWeb(args) {
             `Config: ${path.join(codexHome, "config.toml")}`,
             migration
               ? `Moved ${migration.changed} thread(s), updated ${migration.rolloutChanged} rollout file(s), and repaired ${migration.repairedRolloutPaths} rollout path(s) to provider 'openai'. Backup: ${migration.backupPath}`
-              : payload.restartCodex ? "Threads already use the account provider." : "Only changed the active API connection.",
+              : "Threads already use the account provider.",
             "Run: codex",
           ],
         });
